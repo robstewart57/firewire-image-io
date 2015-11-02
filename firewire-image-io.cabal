@@ -14,7 +14,6 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     CV.Image.IO
-                     , System.Firewire.IO
   build-depends:       base >=4.8 && <4.9
                      , CV >= 0.4.0.0 
                      , bindings-dc1394 >= 0.2.1

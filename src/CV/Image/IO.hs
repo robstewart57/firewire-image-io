@@ -4,7 +4,7 @@ module CV.Image.IO where
 
 import Bindings.DC1394
 import Bindings.DC1394.Types
-import Bindings.DC1394.CameraOps
+import Bindings.DC1394.Camera
 import CV.Conversions
 import CV.Image hiding (saveImage)
 import qualified CV.Image as CV
