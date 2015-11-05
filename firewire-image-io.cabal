@@ -14,11 +14,14 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     CV.Image.IO
+                     , Data.Array.Accelerate.IO.Firewire
   build-depends:       base >=4.8 && <4.9
                      , CV >= 0.4.0.0 
                      , bindings-dc1394 >= 0.2.1
                      , enumerator >= 0.4.20
                      , mtl >= 2.2.1
+                     , accelerate >= 0.15.1.0
+                     , accelerate-io >= 0.15.1.0
   hs-source-dirs:      src
   default-language:    Haskell2010
 
@@ -30,4 +33,19 @@ executable firewire-opencv-example
                      , firewire-image-io
                      , bindings-dc1394 >= 0.2.1
                      , enumerator >= 0.4.20
+  default-language:    Haskell2010
+
+executable firewire-accelerate-example
+  hs-source-dirs:      examples
+  main-is:             accelerate.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , firewire-image-io
+                     , bindings-dc1394 >= 0.2.1
+                     , enumerator >= 0.4.20
+                     , accelerate >= 0.15.1.0
+                     , accelerate-cuda >= 0.15.1.0
+                     , accelerate-io >= 0.15.1.0
+                     , repa >= 3.4.0.2
+                     , repa-io >= 3.4.0.2
   default-language:    Haskell2010
