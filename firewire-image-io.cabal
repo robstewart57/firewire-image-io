@@ -44,7 +44,21 @@ executable firewire-accelerate-example
                      , bindings-dc1394 >= 0.2.1
                      , enumerator >= 0.4.20
                      , accelerate >= 0.15.1.0
-                     , accelerate-cuda >= 0.15.1.0
+--                     , accelerate-cuda >= 0.15.1.0
+                     , accelerate-io >= 0.15.1.0
+                     , repa >= 3.4.0.2
+                     , repa-io >= 3.4.0.2
+  default-language:    Haskell2010
+
+executable firewire-accelerate-opencv-example
+  hs-source-dirs:      examples
+  main-is:             accelerate-opencv.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  build-depends:       base
+                     , firewire-image-io
+                     , bindings-dc1394 >= 0.2.1
+                     , enumerator >= 0.4.20
+                     , accelerate >= 0.15.1.0
                      , accelerate-io >= 0.15.1.0
                      , repa >= 3.4.0.2
                      , repa-io >= 3.4.0.2

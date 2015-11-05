@@ -1,0 +1,66 @@
+* Firewire camera input for Haskell
+
+This repository builds on the [[https://github.com/robstewart57/bindings-dc1394][bindings-dc1394]] library, a low level
+Haskell bindings for libdc1394. It provides the ability to parse
+captured firewire images into arrays in the [[http://hackage.haskell.org/package/accelerate][accelerate]] library, to be
+processed in parallel on multicore CPUs and GPUs. It also provides the
+ability to parse captured firewire images into OpenCV image structures
+in the [[https://github.com/robstewart57/CV][CV]] OpenCV Haskell binding. In both cases, the ~getFrame~
+function should be used in conjunction with ~withFirewireCamera~ from
+the /bindings-dc1394/ fork, see Section [[Development]].
+
+** Project structure
+
+*** Image processing on CPUs and GPUs with Accelerate
+
+The accelerate mapping is in ~Data.Array.Accelerate.IO.Firewire~ and
+images are captured with:
+
+#+BEGIN_SRC haskell
+getFrame :: Camera -> IO (Either Error (Array DIM3 Word8))
+#+END_SRC
+
+*** Image processing on CPUs with OpenCV
+
+The OpenCV mapping is in ~CV.Image.IO~ and images are captured with:
+
+#+BEGIN_SRC haskell
+getFrame :: Camera -> IO (Maybe (Image RGB D8))
+#+END_SRC
+
+** Example
+
+Full examples of both are in ~examples/~. Here's one:
+
+#+BEGIN_SRC haskell
+main :: IO ()
+main = do
+    -- map a firewire frame into an accelerate array
+    withFirewireCamera ISO_400
+                       Mode_640x480_RGB8 Rate_30
+                       4
+                       defaultFlags $ \camera -> do
+      Right frame <- A.getFrame camera
+      let rgbaImg = (A.map A.packRGBA32
+                    . reverseThen3dTo2d 480 640
+                    . use) frame
+          computation = (A.map A.rgba32OfLuminance .fst . canny 0.7 0.9) rgbaImg
+          -- run Canny edge detection on a GPU
+          newImg  = CUDA.run computation
+      A.writeImageToBMP "out_accelerate.bmp" newImg  
+
+    -- map a firewire frame into an OpenCV image
+    withFirewireCamera ISO_400
+                       Mode_640x480_RGB8 Rate_30
+                       4
+                       defaultFlags $ \camera -> do
+      -- just save OpenCV image to file
+      fromJust <$> CV.getFrame camera >>= CV.saveImage "out_openCV.png"
+#+END_SRC
+
+** Development
+
+Contributions welcome! This repository depends on a fork of the
+/bindings-dc1394/ library which includes ~withFirewireCamera~, found
+[[https://github.com/robstewart57/bindings-dc1394][here]]. A pull request upstream has been [[https://github.com/aleator/bindings-dc1394/pull/1][submitted]] and is awaiting
+feedback.
