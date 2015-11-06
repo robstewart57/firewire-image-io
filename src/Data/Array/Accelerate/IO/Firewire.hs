@@ -2,8 +2,11 @@
 
 module Data.Array.Accelerate.IO.Firewire
     (
-    -- * Get firewire frame
+    -- * Get firewire frame and format to 'RGBAImageDIM2'
       getFrame
+    , formatFrame
+    -- * Actions on frame sequences
+    , withFrames
     -- * Functions to manipulate images inside accelerate arrays
     , img3dTo2d
     , reversedImg3dTo2d
@@ -17,8 +20,11 @@ import Bindings.DC1394
 import Bindings.DC1394.Camera
 import Bindings.DC1394.Types
 import Control.Monad
+import Control.Monad.Trans hiding (lift)
 import Data.Array.Accelerate hiding ((++))
 import Data.Array.Accelerate.IO
+import Data.Enumerator hiding (peek)
+import qualified Data.Enumerator.List as E
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Foreign.Storable
@@ -28,6 +34,10 @@ type RGBAImageDIM2 = Array DIM2 (Word8,Word8,Word8,Word8)
 type RGBImageDIM3 = Array DIM3 Word8
 
 index3 i j k = lift (Z :. i :. j :. k)
+
+-- | See 'reverseThen3dTo2d'
+formatFrame :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
+formatFrame = reverseThen3dTo2d
 
 reverseThen3dTo2d :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
 reverseThen3dTo2d h w = reversedImg3dTo2d  h w . reverseImg3d h w
@@ -49,8 +59,8 @@ reverseImg3d h w = reshape (lift (Z :. (h::Int) :. (w::Int) :. (3::Int))) . reve
 --     Right frame <- getFrame camera
 --     let rgbAImg = (map packRGBA32 . reverseThen3dTo2d 480 640) frame
 -- @
-getFrame :: Camera -> IO (Either String RGBImageDIM3)
-getFrame camera' = alloca $ \(framePtr :: Ptr (Ptr C'dc1394video_frame_t)) ->
+getFrame :: Camera -> Int -> Int -> IO (Either String RGBImageDIM3)
+getFrame camera' width height = alloca $ \(framePtr :: Ptr (Ptr C'dc1394video_frame_t)) ->
                     withCameraPtr camera' $ \camera -> do
 
     mode <- getMode camera
@@ -66,11 +76,35 @@ getFrame camera' = alloca $ \(framePtr :: Ptr (Ptr C'dc1394video_frame_t)) ->
                 case corrupt of
                     (0::Int) -> do
                            dataPtr <- c'dc1394video_frame_t'image <$> (peek framePtr >>= peek)
-                           (arr :: Array (Z :. Int :. Int :. Int) Word8) <- fromPtr  (Z :. 480 :. 640 :. 3) ((),dataPtr)
+                           (arr :: Array (Z :. Int :. Int :. Int) Word8) <- fromPtr  (Z :. height :. width :. 3) ((),dataPtr)
                            void $ c'dc1394_capture_enqueue camera frameP
                            return (Right arr)
                     _ -> c'dc1394_capture_enqueue camera frameP >> return (Left "firewire image corrupt")
 
+
+enumCamera
+  :: MonadIO m =>
+     Camera -> Int -> Int -> Step RGBImageDIM3 m b -> Iteratee RGBImageDIM3 m b
+enumCamera camera width height = loop 
+    where
+     loop (Continue k) = do
+                            x <- liftIO $ getFrame camera width height
+                            case x of
+                                Right img -> k (Chunks [img]) >>== loop  
+                                Left _err -> k (Chunks []) >>== loop 
+     loop s = returnI s
+
+applyFrameAction :: (RGBImageDIM3 -> Int -> IO ()) -> Iteratee RGBImageDIM3 IO ()
+applyFrameAction frameAction = continue $ go 0
+ where
+    go :: Int -> Stream RGBImageDIM3 -> Iteratee RGBImageDIM3 IO ()
+    go n (Chunks [])  = continue (go n)
+    go n (Chunks [img]) = liftIO (frameAction img n) >> continue (go (n+1))
+    go _ a            = yield () a 
+
+withFrames c width height n frameAction = enumCamera c width height $$ (E.isolate n =$ applyFrameAction frameAction)
+
+                         
 --------------------------
 -- not exported
 
