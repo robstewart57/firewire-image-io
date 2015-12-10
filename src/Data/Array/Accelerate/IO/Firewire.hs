@@ -4,18 +4,16 @@ module Data.Array.Accelerate.IO.Firewire
     (
     -- * Get firewire frame and format to 'RGBAImageDIM2'
       getFrame
-    , formatFrame
     -- * Actions on frame sequences
     , withFrames
     -- * Functions to manipulate images inside accelerate arrays
-    , img3dTo2d
-    , reversedImg3dTo2d
-    , reverseImg3d
-    , reverseThen3dTo2d
+    , flatten3dTo2d
+    , flipV
     -- * Types
     , RGBAImageDIM2, RGBImageDIM3
-    ) where
-
+    )
+   where
+     
 import Bindings.DC1394
 import Bindings.DC1394.Camera
 import Bindings.DC1394.Types
@@ -33,24 +31,25 @@ import Prelude hiding (reverse)
 type RGBAImageDIM2 = Array DIM2 (Word8,Word8,Word8,Word8)
 type RGBImageDIM3 = Array DIM3 Word8
 
-index3 i j k = lift (Z :. i :. j :. k)
+-- | flatten a 3D (Word8) image to a 2D (Word8,Word8,Word8) image.
+flatten3dTo2d :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
+flatten3dTo2d = img3dTo2dTriplePattern 0 1 2 -- (R,G,B)
 
--- | See 'reverseThen3dTo2d'
-formatFrame :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
-formatFrame = reverseThen3dTo2d
+-- | flip an (R,G,B) 2D image vertically.
+--   This may appear in the accelerate library at some future date, see
+--   https://github.com/AccelerateHS/aaccelerate/issues/289#issuecomment-163448880
+flipV
+    :: Elt a
+    => Acc (Array DIM2 a)
+    -> Acc (Array DIM2 a)
+flipV arr =
+  let Z :. h :. _ = unlift (shape arr)          :: Z :. Exp Int :. Exp Int
+      p ix        = let Z :. y :. x = unlift ix
+                    in  index2 (h - y - 1) x
+  in
+  backpermute (shape arr) p arr
 
-reverseThen3dTo2d :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
-reverseThen3dTo2d h w = reversedImg3dTo2d  h w . reverseImg3d h w
-                        
-img3dTo2d :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
-img3dTo2d = img3dTo2dTriplePattern 0 1 2 -- (R,G,B)
 
-reversedImg3dTo2d :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
-reversedImg3dTo2d = img3dTo2dTriplePattern 2 1 0 -- (B,G,R)
-
-reverseImg3d :: Int -> Int -> Acc RGBImageDIM3 -> Acc RGBImageDIM3
-reverseImg3d h w = reshape (lift (Z :. (h::Int) :. (w::Int) :. (3::Int))) . reverse . flatten
-                    
 -- | Grab a frame from the camera. Currently does only 640x480 RGB Images.
 --   This currently consumes from the foreign pointer from the camera in
 --   reverse order, so the user should do:
@@ -107,6 +106,8 @@ withFrames c width height n frameAction = enumCamera c width height $$ (E.isolat
                          
 --------------------------
 -- not exported
+
+index3 i j k = lift (Z :. i :. j :. k)
 
 img3dTo2dTriplePattern :: Int -> Int -> Int -> Int -> Int -> Acc RGBImageDIM3 -> Acc RGBAImageDIM2
 img3dTo2dTriplePattern idx0 idx1 idx2 h' w' img3d = 

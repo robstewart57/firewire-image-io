@@ -10,9 +10,8 @@ import Data.Array.Accelerate hiding (fromIntegral,fst)
 import qualified Data.Array.Accelerate as A
 import qualified Data.Array.Accelerate.IO as A
 import Data.Array.Accelerate.IO.Firewire
-import qualified Data.Array.Accelerate.IO.Firewire as A (getFrame,formatFrame)
--- import qualified Data.Array.Accelerate.CUDA as CUDA
-import Data.Array.Accelerate.Interpreter
+import qualified Data.Array.Accelerate.IO.Firewire as A -- (getFrame,formatFrame)
+import qualified Data.Array.Accelerate.CUDA as CUDA
 import Data.Enumerator (run_)
 import Data.Maybe
 import qualified Data.Array.Repa as Repa
@@ -29,10 +28,10 @@ main = do
                        4
                        defaultFlags $ \camera -> do
       Right frame <- A.getFrame camera 640 480
-      let rgbaImg = (A.map A.packRGBA32 . A.formatFrame 480 640 . use) frame
+      let rgbaImg = (A.map A.packRGBA32 . A.flatten3dTo2d 480 640 . use) frame
           computation = (A.map A.rgba32OfLuminance .fst . canny 0.7 0.9) rgbaImg
           -- run Canny edge detection on a GPU
-          newImg  = run computation
+          newImg  = CUDA.run computation
       A.writeImageToBMP "out_accelerate.bmp" newImg  
 
     -- map a firewire frame into an OpenCV image, write image to PNG file.
