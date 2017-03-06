@@ -15,7 +15,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     CV.Image.IO
                      , Data.Array.Accelerate.IO.Firewire
-  build-depends:       base >=4.8 && <4.9
+  build-depends:       base >=4.8
                      , CV >= 0.4.0.0 
                      , bindings-dc1394 >= 0.2.1
                      , enumerator >= 0.4.20
